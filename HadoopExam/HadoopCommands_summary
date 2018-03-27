@@ -1,0 +1,27 @@
+Create directory in hdfs:
+$ hdfs dfs -mkdir hdfs_commands
+
+create a file in hdfs name data.txt in hdfs_commands folder:
+$ hdfs dfs -touchz hdfs_commands/data.txt
+
+copy data.txt file in local from hdfs without changing any permission:
+$ hdfs dfs -copyToLocal(or -get) -p hdfs_commands/data.txt /home/cloudera/
+
+move a file from local to hdfs:
+$ hdfs dfs -put or -moveFromLocal /localpath /hdfspath
+
+create a file in local:
+$ touch file1.txt
+
+override the exisiting directory:
+$ hdfs dfs -put -f existingDir
+
+merge all the files in a directory to a single file:
+$ hdfs dfs -getmerge -nl hdfsDirectory localFile.txt
+$ hdfs dfs -put localFile.txt /hdfspath
+
+change the permission of the merged file on hdfs:
+hdfs dfs -chmod 664 /hdfsFilePath
+[user=rwx] r=4, w=2, x=1
+[group=rwx]
+[other-rwx]

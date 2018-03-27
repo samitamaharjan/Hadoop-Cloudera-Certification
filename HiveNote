@@ -1,0 +1,90 @@
+HIVE:
+-Hive's warehouse directory, which is controlled by the hive.metastore.warehouse.dir, and defaults to /user/hive/warehouse.
+-HIve is configured using an XML configuration file like Hadoop's. The file is called hive-site.xml and is located in Hive's conf directory.
+-The following commands will create the directories and set their premissions appropriately:
+	#hadoop fs -mkdir /tmp
+	#hadoop fs -chmod a+w /tmp
+	#hadoop fs -mkdir /user/hive/warehouse
+	#hadoop fs -chmod a+w /user/hive/warehouse
+if all users are in the same group, then permissions g+w are sufficient on the warehouse directory.
+-Hive Service: Type "hive --service help" to get a list of available service names. The most useful are decribed below:
+		1. cli --> The Command Line Interface to HIve (the shell). THis is the default service.
+		2. hiveserver --> it runs Hive as a serve exposing a Thrift service. Application using the Thrift, JDBC and ODBC connectors, need to run a Hive server to communicate with hive. Set the HIVE_PORT environment variable to specify the port he server will listen on (default to 10,0000).
+		3. hwi --> The Hive Web Interface.
+		4. jar --> The Hive equivalent to hadoop jar, a convinent way to run Java applications that includes both Hadoop and Hive classes on the classpath.
+		5. metastore --> By default, the metastore is run int he same process as the Hive service. USING THIS SERVICE, IT IS POSSIBLE TO RUN THE METASTORE AS A STANDALONE (REMOTE) PROCESS. Set METASTORE_PORT environment variable to specify the port the server will listen on.
+
+- Hive clients and architecture.... REFER BOOK 
+	Hive clients --> 1. Thrift 2. JBBC Driver 3. ODBC Driver
+	Metastore ---> The metastore is the central repository of Hive metadata. The metastore is divided into two pieces: a service; and backing store for the data. By defaultm the metastore service runs in the same JVM as the hive service.
+				---> 1. Embedded metastore == a simply way to get started with Hive. Only one embedded Berby database can access the database files on disk at any one time. i.e you can only have one Hive session open at a time that shares the same metastore. 
+				---> 2. Local metastore == The solutions to support multiple sessions (therfore multiple users) is to use a standalone database. MYSQL is a popular choice for the standalone metastore.
+				---> 3. Remote metastore == One of more metastore servers run in separate processes to the Hive service. This brings better managebility and security, sinve the database tier can be completely firewalled off, and the clients no longer need the database credentials. A hive service is configured to use a remote metastore by settling hive.metastore.local to false, and hive.metastore.uris to the metastore server URIs, separated by commas of the is more than one.
+				
+- Comparison with traditional database: REFER TO BOOK
+	1. Schema on Read Versus Schema on Write
+		RDBMS is Schema on Write. The data is checked against the schema when it is written into the database. If the data being loaded doesn't conform(similar in form/type) to the schema, then it is rejected. This design is called "Schema on Write". 
+		HIVE is Schema on Read. Hive doesn't verify the data when it is loaded, but rather when a query is issued.
+	2. Updates, Transactions, and Indexes 
+		RDBMS - updates, transactions, and indexes are mainstays of traditional databases. 
+		HIVE - these features have not been considered a part of Hive;s feature set. This is because Hive was built to operate over HDFS data using MapReduce....
+				To overcome it, HBase is inttegrated to do row updates and column indexing.
+- comparison of SQL and HiveSQL --- refer  table in book pg -377
+
+-Hive Data Types:
+Category			 Type 	Description 													Literal_examples
+Primitive 
+		TINYINT 	1-byte 	(8-bit) signed integer, from -128 to 127 							--	1Y
+		SMALLINT 	2-byte (16-bit) signed integer, from -32,768 to 32,767 						--	1S
+		INT 		4-byte (32-bit) signed integer, from -2,147,483,648 to 2,147,483,647 		-- 	1
+		BIGINT 		8-byte (64-bit) signed integer, from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 -- 1L
+		FLOAT 		4-byte (32-bit) single-precision floating-point number 						--	1.0
+		DOUBLE 		8-byte (64-bit) double-precision floating-point number 						-- 	1.0
+		DECIMAL		Arbitary-precision signed decimal number									--	1.0
+		BOOLEAN 	true/false value 															--	TRUE
+		STRING 		Character string 															--	'a', "a"
+		VARCHAR		Variable-length character string											--  'a', "a"
+		TIMESTAMP	Timestamp with nanosecond precision											-- 	1325502245000, '2012-01-02 03:04:05.123456789'
+		BINARY		Byte array																	-- 	Not supported
+		DATE		DATE																		--  '2012-01-02'
+Complex 
+		ARRAY		An ordered collection of fields. The fields must all be of the same type.	-- array(1, 2)
+		MAP 		An unordered collection of key-value pairs. Keys must be primitives; values 
+					may be any type. For a particular map, the keys must be the same type, and 
+					the values must be the same type.											-- map('a', 1, 'b', 2)
+		STRUCT 		A collection of named fields. The fields may be of different types. 		-- struct('a', 1, 1.0), named_stru('col1', 'a', 'col2', 1, 'col3', 1.0)
+		UNION 		A value that may be one of a number of defined data types. The value is tagged	-- create_union(1, 'a', 63)
+					with an integer (zero-indexed) representing its data type in the union
+		
+Types of Table: 
+	External and Managed Tables
+		When you create a table in Hive, by default Hive will manage the data, which means that Hive moves the data into its warehouse directory. Alternatively, you may create
+		an external table, which tells Hive to refer to the data that is at an existing location outside the warehouse directory. 
+		External tables are accessible by any tools including hive, Hbase, spark, etc , in other word this type of table can be share with other teams who are working with any other tools in hadoop.
+		Managed tables has only acces to hive.
+		The main difference is , when you drop a table, if it is managed table hive deletes both data and metadata, if it is external table Hive only deletes metadata. In real projects, both tables are kept. Because, external tables are shared to many teams and when it stops sharing, then data will not be deleted only metadata will be deleted.
+		
+-Partition:
+		A table may be partitioned in multiple dimensions. For example, in addition to partioning logs by date, we might also subpartition each date partition by country to permit efficient queries by location.
+	hive>CREATE TABLE logs (ts BIGINT, line STRING) PARTITIONED BY (dt STRING, country STRING);
+	hive>LOAD DATA LOCAL INPATH 'input/hive/partitions/file1' INTO TABLE logs PARTITION (dt='2001-01-01', country='GB');
+	hive> SHOW PARTITIONS logs; ---ask hive for partitions in a table
+-Bucket:
+................
+
+-Storage Formats: There are two dimensions that govern table storage in Hive: a) row format and b) file format
+	a)row format --> is defined by a SerDe (Serializer-Deserializer). Serialization is a process of converting an Object into stream of bytes so that it can transferred over a network or stored in a persistent storage.
+				 ---> Deserialization is exact opposite- turning a stream of bytes into an object in memory. 
+	b)file format --> it dictates the container format for fields in a row. The simplest format is a plain text file, but there are row-oriented and column-oriented binary formats available too.
+	
+	-THE DEFAULT STORAGE FORMAT: DELIMITED TEXT
+		When you create a table with no ROW FORMAT or STORED AS clauses, the default format is delimited text, with a row per line.
+		Hive actually supports eights levels of delimiters, corresponding to ASCII codes 1,2,...8, but you can only override the first three.
+		CREATE TABLE <table_name> ROW FORMAT DELIMITED 
+									FIELDS TERMINATED BY '\001'
+									COLLECTION ITEMS TERMINATED BY '\002'
+									MAP KEYS TERMINATED BY '\003'
+									LINES TERMINATED BY '\n'
+								STORED AS TEXTFILE ;
+								
+									

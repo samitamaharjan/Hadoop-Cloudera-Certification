@@ -1,0 +1,380 @@
+37. After every 100 message it should be committed, use non-durable/faster channel and
+it should be able to hold maximum 1000 events
+37.1#define source, sink, channel and agent
+agent1.sources=source1
+agent1.sinks=sink1
+agent1.channels=channel1
+
+#Describe/configure source1
+agent1.sources.source1.type=exec
+agent1.sources.source1.command=tail -F /opt/gen_logs/logs/access.log
+
+#Describe sink1
+agent1.sinks.sink1.channel=memory-channel
+agent1.sinks.sink1.type=hdfs
+agent1.sinks.sink1.hdfs.path=/HadoopExam/Flume1
+agent1.sinks.sink1.hdfs.fileType=DataStream
+
+#Now we need to define channel1 property
+agent1.channels.channel1.type=memory
+agent1.channels.channel1.capacity=1000
+agent1.channels.channel1.transactionCapacity=100
+
+#Bind the source and sink to the channel
+agent1.sources.source1.channels=channel1
+agent1.sinks.sink1.channel=channel1
+
+37.2 Start flume service:
+#flume-ng agent --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume1.conf \
+-Dflume.root.logger=DEBUG,INFO,console \
+--name agent1
+
+38. Use netcat service on port 44444, and nc given data line by line. flume conf file using fastest
+channel, which write data in hive warehouse directory, in a table called flumeemployee
+38.1 create table flumeemployee (
+name string, salary int, sex string, age int)
+row format delimited 
+fields terminated by ',' ;
+
+38.2 flume conf file:
+#define source, channel, sink
+agent1.sources=source1
+agent1.sinks=sink1
+agent1.channels=channel1
+
+#define source1
+agent1.sources.source1.type=netcat
+agent1.sources.source1.bind = 127.0.0.1
+agent1.sources.source1.port = 44444
+
+#describe sink1
+agent1.sinks.sink1.channel = memory-channel
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /user/hive/warehouse/family/flumeemployee
+hdfs-agent.sinks.hdfs-write.hdfs.writeFormat = Text
+agent1.sinks.sink1.hdfs.fileType = DataStream
+
+#Define channel1
+agent1.channels.channel1.type = memory
+agent1.channels.channel1.capacity = 1000
+agent1.channels.channel1.transactionCapacity = 100
+
+#Bind the source and sink to the channel
+agent1.sources.source1.channels = channel1
+agent1.sinks.sink1.channel = channel1
+
+38.3 Start the flume service:
+#flume-ng agent --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume2.conf \
+--name agent1
+
+38.4 use netcat service in another terminal:
+nc localhost 44444
+
+38.5 import given data line by line
+
+39. #Define source, sink, channel
+agent1.sources = source1
+agent1.sinks = sink1
+agent1.channels = channel1
+
+#describe source
+agent1.sources.source1.type = exec
+agent1.sources.source1.command = tail -F /opt/gen_logs/logs/access.log
+
+#describe interceptors
+agent1.sources.source1.interceptors = i1
+agent1.sources.source1.interceptors.i1.type = timestamp
+agent1.sources.source1.interceptors.i1.preserveExisting = true
+
+#describe sink
+agent1.sinks.sink1.channel = memory-channel
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /HadoopExam/flume3/%Y/%m/%d/%H/%M
+agent1.sinks.sink1.hdfs.file.type = DataStream
+
+#define channel
+agent1.channels.channel1.type = memory
+agent1.channels.channel1.capacity = 1000
+agent1.channels.channel1.transactionCapacity = 100
+
+#Bind source and sink to channel
+agent1.sources.source1.channels = channel1
+agent1.sinks.sink1.channel = channel1
+
+39.2 start flume service:
+flume-ng agent --conf /home/cloudera/HadoopExam/flume --conf-file /home/cloudera/HadoopExam/flume/flume3.conf -Dflume.root.logger=DEBUG,INFO,console --name agent1
+
+40. same as 38, make sure only male employee data is stored:
+40.1 #define source, sink, channel
+agent1.sources = source1
+agent1.sinks = sink1
+agent1.channels = channel
+
+#describe source
+agent1.sources.source1.type = netcat
+agent1.sources.source1.bind = 127.0.0.1
+agent1.sources.source1.port = 44444
+
+#describe interceptor
+agent1.sources.source1.interceptors = i1
+agent1.sources.source1.interceptors.i1.type = regex_filter
+agent1.sources.source1.interceptors.i1.regex = ^.*,\\d*,("female"),\\d*$
+agent1.sources.source1.interceptors.i1.excludeEvents = true
+
+#describe sink1
+agent1.sinks.sink1.channel = memory-channel
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /user/hive/warehouse/flumedata.db/flumeemployee
+hdfs-agent.sinks.hdfs-write.hdfs.writeFormat = Text
+agent1.sinks.sink1.hdfs.fileType = DataStream
+
+#describe channel1
+agent1.channels.channel1.type = memory
+agent1.channels.channel1.capacity = 1000
+agent1.channels.channel1.transactionCapacity = 100
+
+#Bind the source and sink to channel
+agent1.sources.source1.channels = channel1
+agent1.sinks.sink1.channel = channel1
+
+40.2 Run flume service
+#flume-ng agent --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume4.conf \
+--name agent1
+
+40.3 use netcat service
+nc localhost 44444
+
+41. flumemaleemployee1 will contain only male employees data and
+flumefemaleemployee1 will contain only female employees data.
+
+41.1 flume config. file
+#Define sources, sinks, and channels
+agent1.sources = source1
+agent1.sinks = sink1 sink2
+agent1.channels = channel1 channel2
+
+#Define source1
+agent1.sources.source1.type = exec
+agent1.sources.source1.command = tail -F /home/cloudera/HadoopExam/flume/flume5data.txt
+agent1.sources.source1.batchSize = 1
+
+#Define interceptor
+agent1.sources.source1.interceptors = i1
+agent1.sources.source1.interceptors.i1.type = regex_extractor 
+agent1.sources.source1.interceptors.i1.regex = ^(\\d)
+agent1.sources.source1.interceptors.i1.serializers = t1
+agent1.sources.source1.interceptors.i1.serializers.t1.name = gender
+
+#Define channel selectors
+agent1.sources.source1.selector.type = multiplexing
+agent1.sources.source1.selector.header = gender
+agent1.sources.source1.selector.mapping.1 = channel1
+agent1.sources.source1.selector.mapping.2 = channel2
+
+#Define sink1 and sink2
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.batchSize = 1
+agent1.sinks.sink1.hdfs.path = /user/hive/warehouse/flumedata.db/flumemaleemployee1
+agent1.sinks.sink1.hdfs.writeFormat = Text
+agent1.sinks.sink1.rollInterval = 0
+agent1.sinks.sink1.fileType = DataStream
+
+agent1.sinks.sink2.type = hdfs
+agent1.sinks.sink2.batchSize = 1
+agent1.sinks.sink2.hdfs.path = /user/hive/warehouse/flumedata.db/flumefemaleemployee2
+agent1.sinks.sink2.hdfs.writeFormat = Text
+agent1.sinks.sink2.rollInterval = 0
+agent1.sinks.sink2.hdfs.fileType = DataStream
+
+#Define channel1 and channel2
+agent1.channels.channel1.type = memory
+agent1.channels.channel1.capacity = 100
+
+agent1.channels.channel2.type = memory
+agent1.channels.channel2.capacity = 100
+
+#Bind source and sinks to channels
+agent1.sources.source1.channels = channel1 channel2
+agent1.sinks.sink1.channel = channel1
+agent1.sinks.sink2.channel = channel2
+
+41.2 flume-ng agent --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume5.conf \
+--name agent1
+
+42. Spool directory: /HadoopExam/flume/nrtContent ; prefix: events; suffix: .log; if file is not commited and in use then: _ as prefix; data in text to hdfs 
+42.0 create nrtContent directory in local machine.
+
+42.1#Define source, sink and channel
+agent1.sources = source1
+agent1.sinks = sink1
+agent1.channels = c1
+
+agent1.sources.source1.channels = c1
+agent1.sinks.sink1.channel = c1
+
+agent1.sources.source1.type = spooldir 
+agent1.sources.source1.spoolDir = /home/cloudera/HadoopExam/flume/nrtContent -->already created dir nrtContent in local machine
+
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /HadoopExam/Flume6
+agent1.sinks.sink1.hdfs.filePrefix = events
+agent1.sinks.sink1.hdfs.fileSuffix = .log
+agent1.sinks.sink1.hdfs.inUsePrefix = _
+agent1.sinks.sink1.hdfs.fileType = DataStream
+
+agent1.channels.c1.type = file
+
+42.2 echo "I am preparing for CCA175 from HadoopExam.com" > /home/cloudera/HadoopExam/flume/nrtContent/he1.txt
+
+echo "I am preparing for CCA175 from QuickTechie.com" > /home/cloudera/HadoopExam/flume/nrtContent/qt1.txt
+
+43. Implement near real time solutions. Spool: /tmp/spooldir/bb and /tmp/spooldir/dr; prefix: events; suffix:.log. save in a single directory
+
+43.1 
+agent1.sources = s1, s2
+agent1.sinks = sink1
+agent1.channels = c1
+
+agent1.sources.s1.channels = c1
+agent1.sources.s2.channels = c1
+agent1.sinks.sink1.channel = c1
+
+agent1.sources.s1.type = spooldir
+agent1.sources.s1.spooldir = /home/cloudera/HadoopExam/flume/spooldir/dr
+
+agent1.sources.s2.type = spooldir
+agent1.sources.s2.spooldir = /home/cloudera/HadoopExam/flume/spool/bb
+
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /HadoopExam/Flume7
+agent1.sinks.sink1.hdfs.filePrefix = events
+agent1.sinks.sink1.hdfs.fileSuffix = .log
+agent1.sinks.sink1.hdfs.inUsePrefix = _
+agent1.sinks.sink1.hdfs.fileType = DataStream
+
+agent1.channels.c1.type = file
+
+43.2 flume-ng agent --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume7.conf \
+--name agent1
+
+43.3 echo "IBM,100,20160104" >> spooldir/bb/bb.txt
+echo "IBM,103,20160105" >> spooldir/bb/bb.txt
+
+echo "IBM,100.2,20160104" >> spooldir/dr/dr.txt
+echo "IBM,103.1,20160105" >> spooldir/dr/dr.txt
+
+44 
+agent1.sources = source1
+agent1.sinks = s1 s2
+agent1.channels = c1 c2
+
+agent1.sources.source1.channels = c1 c2
+agent1.sinks.s1.channel = c1
+agent1.sinks.s2.channel = c2
+
+agent1.sources.source1.type = spooldir
+agent1.sources.source1.spoolDir = /home/cloudera/HadoopExam/flume/spooldir2
+
+agent1.sources.source1.selector.type = replicating
+agent1.sources.source1.selector.optional = c2
+
+agent1.sinks.s1.type = hdfs
+agent1.sinks.s1.hdfs.path = /HadoopExam/Flume/primary
+agent1.sinks.s1.hdfs.filePrefix = events
+agent1.sinks.s1.hdfs.fileSuffix = .log
+agent1.sinks.s1.hdfs.inUsePrefix = _
+agent1.sinks.s1.hdfs.fileType = DataStream
+
+agent1.sinks.s2.type = hdfs
+agent1.sinks.s2.hdfs.path = /HadoopExam/Flume/secondary
+agent1.sinks.s2.hdfs.filePrefix = events
+agent1.sinks.s2.hdfs.fileSuffix = .log
+agent1.sinks.s2.hdfs.inUsePrefix = _
+agent1.sinks.s2.hdfs.fileType = DataStream
+
+agent1.channels.c1.type = file
+agent1.channels.c2.type = memory
+
+44.2 
+flume-ng --conf /home/cloudera/HadoopExam/flume \
+--conf-file /home/cloudera/HadoopExam/flume/flume8.conf \
+--name agent1
+
+echo "IBM,100,20160104" >> spooldir2/bb.txt
+echo "IBM,103,20160105" >> spooldir2/bb.txt
+
+
+58. Oozie 
+58.1 create a parameter file in hdfs /HadoopExam/OozieHadoopExam/option.par
+--connect
+jdbc:mysql://quickstart:3306/retail_db
+--username
+retail_db
+--password
+cloudera
+--table
+departments_new
+--split-by
+department_id
+--target-dir
+/HadoopExam/sqoopImport/departments_new
+-m
+1
+
+58.2 
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow-app xmlns='uri:oozie:workflow:0.4' name='sqoop-workflow'>
+	<start to='sqoop-import'/>
+	
+	<action name="sqoop-import">
+		<sqoop xmlns="uri:oozie:sqoop-action:0.2">
+			<job-tracker>${jobTracker}</job-tracker>
+			<name-node>${nameNode}</name-node>
+			<configuration>
+				<property>
+					<name>mapred.job.queue.name</name>
+					<value>${queueName}</value>
+				</property>
+			</configuration>
+			<arg>import</arg>
+			<arg>--options-file</arg>
+			<arg>${optionFile}</arg>
+			<file>${optionFile}</file>
+		</sqoop>
+		<ok to="end"/>
+		<error to="sqoop-import-fail"/>
+	</action>
+	<kill name="sqoop-import-fail">
+		<message>Sqoop import failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+	</kill>
+	
+	<end name='end' />
+</workflow-app>
+
+58.3 properties file:
+#Location of the Name node
+nameNode=hdfs://quickstart.cloudera:8020
+
+#Location of the Resource Manager
+jobTracker=quickstart.cloudera:8032
+
+#Queue Name in which your job will be submitted
+queueName=default
+
+#Root Directory of our application.
+examplesRoot=/HadoopExam/OozieHadoopExam
+
+#Name of the xml file in which our Oozie workflow is configured.
+oozie.wf.application.path=${nameNode}/${examplesRoot}/workflow.xml
+
+#This property will be used in workflow.xml, and reducer will use to write its output.
+#outputDir=map-reduce
+oozie.use.system.libpath=true
+oozie.libpath=/user/oozie/share/lib
+
+optionFile= ${examplesRoot}/option.par

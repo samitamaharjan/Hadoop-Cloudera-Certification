@@ -1,0 +1,351 @@
+Jul  7 22:52:54 hadoopexam-n1 pwd: tty (/dev/tty6) main process (1500) killed by TERM signal
+Jul  7 22:53:31 hadoopexam-n1 root: registered taskstats version 1
+
+1.hive ql:
+use hadoopexam;
+drop table log_sqoop;
+
+create table log_sqoop (
+month_name string, day string, time string, host string, user string, log_msg string)
+row format SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+with SERDEPROPERTIES (
+"input.regex"="^(\\w+)[ ]+(\\d+)[ ]+(\\d+:\\d+:\\d+)[ ]+([^ ]+)[ ]+([^\:]+):[ ]+(.*)$"
+)
+stored as textfile;
+
+insert into log_sqoop '/HadoopExam/Oozie/practice/log_data.txt';
+drop table log_sqoop1;
+
+create table log_sqoop1 ( 
+month_name string, day string, time string, host string, user string, log_msg string)
+row format delimited fields terminated by '\t';
+
+insert into log_sqoop1 select * from log_sqoop;
+
+2. workflow:[i.put file into hdfs, ii. hive-action, iii. export to mysql]
+<workflow-app name="parent-wf" xmlns="uri:oozie:workflow:0.5">
+    <start to="subworkflow" />
+    <action name="subworkflow">
+        <sub-workflow>
+            <app-path>${subworkflowDir}</app-path>
+            <propagate-configuration />
+        </sub-workflow>
+        <ok to="sqoop-action"/>
+        <error to="killJob"/>
+    </action>
+    <action name="sqoop-action">
+        <sqoop xmlns="uri:oozie:sqoop-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <command>export --connect jdbc:mysql://quickstart:3306/retail_db --username retail_dba --password cloudera --table export_log_sqoop --export-dir /user/hive/warehouse/hadoopexam.db/log_sqoop1 --batch --fields-terminated-by "\t" -m 1</command>
+        </sqoop>
+        <ok to="end"/>
+        <error to="killJob"/>
+    </action>
+    <kill name="killJob">
+    	<message>"kill job due to error: [${wf:errorMessage (wf:lastErrorNode())}]"</message>
+	</kill>
+	<end name="end" />
+</workflow-app>
+
+3.subworkflow:
+<workflow-app name="child-wf" xmlns="uri:oozie:workflow:0.4">
+    <start to="hive-action" />
+    <action name="hive-action">
+        <hive xmlns="uri:oozie:hive-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <script>hivescript.ql</script>
+            <job-xml>${hive_site}</job-xml>
+        </hive>
+        <ok to="end"/>
+        <error to="killJob"/>
+    </action>
+    <kill name="killJob">
+    	<message>"Job killed due to error: [${wf:errorMessage (wf:lastErrorNode())}]"</message>
+	</kill>
+    <end name="end"/>
+</workflow-app>
+
+
+
+4. job.properties:
+jobTracker=quickstart.cloudera:8032
+nameNode=hdfs://quickstart.cloudera:8020
+queueName=default
+hdfspath=/HadoopExam/Oozie/practice
+inputDir=${hdfspath}/input
+inputfile=${inputDir}/log_data.txt
+
+oozie.wf.application.path=${nameNode}${hdfspath}/workflow.xml
+oozie.use.system.libpath=true
+oozie.libpath=/user/oozie/share/lib
+
+subworkflowDir=${hdfspath}/subworkflow
+hive_site=${hdfspath}/hive-site.xml
+
+=================================================================================================
+
+1. sh file:
+
+hdfs dfs -rm /HadoopExam/Oozie/practice/log_sqoop_file.txt
+hdfs dfs -put /home/cloudera/HadoopExam/oozie/practice/log_sqoop_file.txt /HadoopExam/Oozie/practice/
+
+2. workflow:
+
+<workflow-app xmlns='uri:oozie:workflow:0.3' name='shell-wf'>
+    <start to='copyToHdfs' />
+    <action name='copyToHdfs'>
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                  <name>mapred.job.queue.name</name>
+                  <value>${queueName}</value>
+                </property>
+            </configuration>
+            <exec>${EXEC}</exec>
+            <file>${EXEC}#${EXEC}</file> <!--Copy the executable to compute node's current working directory -->
+        </shell>
+        <ok to="end" />
+        <error to="fail" />
+    </action>
+    <kill name="fail">
+        <message>Script failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+    </kill>
+    <end name='end' />
+</workflow-app>
+
+3. job.properties file:
+
+nameNode=hdfs://quickstart.cloudera:8020
+jobTracker=quickstart.cloudera:8032
+queueName=default
+hdfspath=/HadoopExam/Oozie/practice
+EXEC_DIR=${nameNode}${hdfspath}
+EXEC=${nameNode}${hdfspath}/script.sh
+
+oozie.wf.application.path=${nameNode}${hdfspath}/workflow_sh/workflow.xml
+oozie.use.system.libpath=true
+oozie.libpath=/user/oozie/share/lib
+
+==============================================================================
+i. check if file has at least 1 record
+ii. create a table partitioned dynamically by host name; load data into it.
+iii. export all hive data to mysql parallely
+
+1. workflow:
+<workflow-app name="fork-practice-wf" xmlns="uri:oozie:workflow:0.1">
+    <start to="decision-action" />
+    <decision name="decision-action">
+        <switch>
+            <case to="hive-action">
+              ${numberOfRecords gt requiredRecord}
+            </case>
+            <default to="end"/>
+        </switch>
+    </decision>
+    <action name="hive-action">
+        <hive xmlns="uri:oozie:hive-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <job-xml>${hive_site}</job-xml>
+            <script>hivescript.ql</script>
+        </hive>
+        <ok to="forking"/>
+        <error to="errorcleanup"/>
+    </action>
+    <fork name="forking">
+        <path start="hadoopexam"/>
+        <path start="quicktechie"/>
+        <path start="training4exam"/>
+    </fork>
+    <action name="hadoopexam">
+        <sqoop xmlns="uri:oozie:sqoop-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <command>export --connect jdbc:mysql://quickstart:3306/retail_db --username retail_dba --password cloudera --table hadoopexam --export-dir /user/hive/warehouse/hadoopexam.db/hadoopexam --fields-terminated-by "\t" --batch -m 1</command>
+        </sqoop>
+        <ok to="joining"/>
+        <error to="errorcleanup"/>
+    </action>
+    <action name="quicktechie">
+        <sqoop xmlns="uri:oozie:sqoop-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <command>export --connect jdbc:mysql://quickstart:3306/retail_db --username retail_dba --password cloudera --table quicktechie --export-dir /user/hive/warehouse/hadoopexam.db/quicktechie --batch --fields-terminated-by "\t" -m 1</command>
+        </sqoop>
+        <ok to="joining"/>
+        <error to="errorcleanup"/>
+    </action>
+    <action name="training4exam">
+        <sqoop xmlns="uri:oozie:sqoop-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <command>export --connect jdbc:mysql://quickstart:3306/retail_db --username retail_dba --password cloudera --table training4exam --export-dir /user/hive/warehouse/hadoopexam.db/training4exam --fields-terminated-by "\t" --batch -m 1</command>
+        </sqoop>
+        <ok to="joining"/>
+        <error to="errorcleanup"/>
+    </action>
+    <join name="joining" to="end"/>
+    <kill name="errorcleanup">
+    	<message>"Fail due to error: [${wf:errorMessage (wf:lastErrorNode())}]"</message>
+	</kill>
+	<end name="end" />
+</workflow-app>
+
+2. job.properties:
+nameNode=hdfs://quickstart.cloudera:8020
+jobTracker=quickstart.cloudera:8032
+queueName=default
+hdfspath=/HadoopExam/Oozie/practice_fork
+oozie.wf.application.path=${nameNode}${hdfspath}/workflow.xml
+oozie.use.system.libpath=true
+oozie.libpath=/user/oozie/share/lib
+
+numberOfRecords=`cat /HadoopExam/Oozie/practice_fork/log_sqoop_file.txt | wc -l`
+requiredRecord=1
+
+hive_site=${nameNode}${hdfs}/hive-site.xml
+
+3. hivescript.ql file:
+use hadoopexam;
+drop table t1;
+
+create table t1(month_name string, day string, time string, host string, user string, log_msg string)
+row format SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+with SERDEPROPERTIES (
+"input.regex"="^(\\w+)[ ]+(\\d+)[ ]+(\\d+:\\d+:\\d+)[ ]+([^ ]+)[ ]+([^\:]+):[ ]+(.*)$" )
+stored as textfile;
+
+load data local inpath '/home/cloudera/HadoopExam/oozie/practice_fork/log_sqoop_file.txt' into table t1;
+
+drop table hadoopexam;
+drop table quicktechie;
+drop table training4exam;
+
+create table hadoopexam(month_name string, day string, time string, host string, user string, log_msg string)
+row format delimited fields terminated by '\t';
+insert into hadoopexam select * from t1 where host like '%hadoopexam%';
+
+create table quicktechie(month_name string, day string, time string, host string, user string, log_msg string)
+row format delimited fields terminated by '\t';
+insert into quicktechie select * from t1 where host like '%quicktech%';
+
+create table training4exam(month_name string, day string, time string, host string, user string, log_msg string)
+row format delimited fields terminated by '\t';
+insert into training4exam select * from t1 where host like '%training4exam%';
+
+=========================================================================================
+
+#Trigger the data daily every 5 mins from 18:15PM., July19,2016 to 11:30 P.M., December 31, 2016
+1. coordinator.xml:
+<coordinator-app name="coordinator-app" frequency="${coord:days(1)}" start="2016-07-19T18:35Z" end="2016-12-31T11:30Z" timezone="UTC"
+                 xmlns="uri:oozie:coordinator:0.2">
+        <action>
+        <workflow>
+            <app-path>${workflowApp}</app-path>
+            <configuration>
+                <property>
+                    <name>jobTracker</name>
+                    <value>${jobTracker}</value>
+                </property>
+                <property>
+                    <name>nameNode</name>
+                    <value>${nameNode}</value>
+                </property>
+                <property>
+                    <name>queueName</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+        </workflow>
+    </action>
+</coordinator-app>
+
+2. job.properties:
+nameNode=hdfs://quickstart.cloudera:8020
+jobTracker=quickstart.cloudera:8032
+queueName=default
+workflowApp=${nameNode}${hdfspath}/<path_to_dir>
+oozie.coord.application.path=${nameNode}${hdfspath}<path_to_dir>
+
+oozie.use.system.libpath=true
+oozie.libpath=/user/oozie/share/lib
+
+==================================================================================================
+70. download last one hour earthquake detail and generate key value pair. 
+Find all the eq magnitude which is gerater than last one hr. If last one hr EQ magnitude is greater than 3, then call java action which will help to download details and save in hdfs.
+
+
+74. coordinator.xml file:
+ <coordinator-app name="hello-coord" frequency="${coord:mins(45)}"
+                    start="${startTime}" end="${endTime}"
+                    timezone="${timeZone}"
+                    xmlns="uri:oozie:coordinator:0.1">
+	<datasets>
+        <dataset name="dataInput" frequency="${coord:mins(45)}"
+                 initial-instance="${startTime}" timezone="${timeZone}">
+          <uri-template>hdfs://bar:8020/app/logs/${YEAR}${MONTH}/${DAY}/data</uri-template>
+        </dataset>
+  	</dataset>
+    <input-events>
+        <data-in name="input" dataset="logs">
+      		<instance>${startTime}</instance>
+        </data-in>
+  	</input-events>
+ 	<action>
+        <workflow>
+          <app-path>hdfs://bar:8020/usr/joe/logsprocessor-wf</app-path>
+          <configuration>
+            <property>
+              <name>wfInput</name>
+              <value>${coord:dataIn('input')}</value>
+            </property>
+            <property>
+              <name>wfOutput</name>
+              <value>${coord:dataOut('output')}</value>
+            </property>
+         </configuration>
+       </workflow>
+      </action>
+   </coordinator-app>
+
+
+NOTE: If hive-import in Sqoop action
+		<file>/hdfspath_hive-site.xml</file>
+
+	For hive action:
+		<job-xml>/hdfspath_hive-site.xml</job-xml>
+		<script>hive_script.ql</script>

@@ -1,0 +1,42 @@
+{
+	first_name : "James",
+	middle_name : "Bond",
+	last_name : "Singh",
+	education :
+	[
+		{
+			institute : "Maharishi",
+			course : "Mscs",
+			subject : 
+			[
+				{
+					id : 101, 
+					name : "computer science"
+				}, 
+				{
+					id : 102,
+					name : "algorithm"
+				}
+			]
+		},
+		{
+			institute : "IEC"
+			course : "BEtech",
+			subject : 
+			[
+				{
+					id : 10,
+					name : "electronics"
+				},
+				{
+					id : 11,
+					name : "fid"
+				}
+			]
+		}
+	],
+	skills : 
+	[
+		"c", "c++", "java"
+	]
+}

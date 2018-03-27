@@ -1,0 +1,274 @@
+//start spark/scala:
+$spark-shell
+
+//convert dataset file to RDD
+var manager = sc.textFile("/spark/EmployeeManager.csv")
+
+//convert collection to RDD
+var manager = sc.parallelize(List("a","the","an","as","a","with","this"))
+
+//Join two files:
+scala> var joinedData = employeePairRDD.join(salaryPairRDD).join(managerPairRDD)
+//above command returns (E02,((Bhupesh,50000),Satyam))
+
+var sortById = joinedData.sortByKey() ==> sortByKey
+
+//output should be in id, name, salary, managerName from (E02,((Bhupesh,50000),Satyam))
+var finalData = sortById.map(v => (v._1, v._2._1._1, v._2._1._2, v._2._2))
+
+val bRemove = sc.broadcast(removeRDD.collect().toList)
+val filtered = contentRDD.filter(word => !bRemove.value.contains(word))
+
+val flatContent = content.flatMap(word => word.split(" "))
+val feedbacksplit = feedbackRDD.map(line => line.split('|')) // must be single quote not a double quote
+
+flatMap 
+the
+book
+same
+
+val pairRDD = filterd.map(word => (word, 1))
+val wordCount = pairRDD.reduceByKey(_ + _)
+//swap key and value
+val swapped = wordCount.map(item => item.swap)
+
+// 3070811,1963,1096,,"US","CA",,1, ==> 3070811,1963,1096,,"US","CA",0,1,0
+mapper.map(x => x.map(x => ({if (x.isEmpty) 0 else x}))).collect() // (x.isEmpty) should be in a bracket
+mapped.map(x => x.map(x => if (x.isEmpty) 0 else x)).collect()
+//python: mapped.map(lambda x: x.map(lambda y: 0 if (len(y) != 0) else y)).collect()
+
+sortedOutput.saveAsTextFile("/spark/test32/output")
+// save compressed output:
+import org.apache.hadoop.io.compress.GzipCodec
+sortedOutput.saveAsTextFile("/spark/test32/output", classOf[GzipCodec])
+# hdfs dfs -text /spark/test32/output/part*
+
+val grpByKey = swapped.groupByKey()
+
+// RDD to collection like Array ==> .collect()
+// Array to RDD ==> sc.parallelize(array)
+
+test.map{case(k,v) => k -> sc.makeRDD(v.toSeq)}
+
+Hadoop exam 34. 
+val headerAndRows = csv.map(line => line.split(",").map(_.trim)) ==> returns [Ljava.lang.String;@15168590]
+val header = headerAndRows.first
+// filter out header:
+val data = headerAndRows.filter(x => x(0) != header(0)) //.filter(_(0) != header(0))
+// Split to map (header/value parir):
+val maps = data.map(splits => header.zip(splits).toMap)
+// remove if id = myself:
+val result = maps.filter(map => ("id") != "myself")
+scala> result.foreach(println)
+Map(id -> Rahul, topic -> scala, hits -> 120)
+
+// to save in a single file:
+swappedBack.repartition(1).saveAsTextFile("/spark/test34/result")
+
+// write all the valid regular expression syntax:
+// 11 Jan, 2015 
+val reg1 = """(\d+)\s(\w{3})(,)\s(\d{4})""".r
+// filter out the record that doesn't match reg1
+val nonValidRecords = feedbacksplit.filter(x => !(reg1.pattern.matcher(x(1).trim).matches)
+
+// convert each array to String
+val valid = validRecords.map(e => (e(0), e(1), e(2)))
+
+38. to save RDD as a sequenceFile. code snippet:
+import org.apache.hadoop.io.compress.GzipCodec
+rdd.map(byetesArray => (A.get(), new B(byetesArray))).saveAsSequenceFile("/hdfsPath")
+A = NullWritable
+B = byetesArray
+
+39. join two tables: and sum the second columns 
+//after joining two files:
+(1, ( (9,5), (g, h))) 
+(2, ( (7,4), (g, h)))
+(3, ( (8,3), (g, h)))
+// final output sum: 5 + 4 + 3
+
+val file1 = sc.textFile("/spark/test39/file1.txt")
+val file1RDD = file1.map(x => (x.split(",")(0), (x.split(",")(1), x.split(",")(2).toInt)))
+
+val file2 = sc.textFile("/spark/test39/file2.txt")
+val file2RDD = file2.map(x => (x.split(",")(0), (x.split(",")(1), x.split(",")(2))))
+
+val joinedData = file1RDD.join(file2RDD)
+val filteredData = joinedData.map(x => x._2._1._2.toInt)
+val reduceData = filtered.reduce((x + y) => x + y)
+
+41. 
+val au1 = sc.parallelize(List( ("a", Array(1,2), ("b", Array(1,2))))) 
+val au2 = sc.parallelize(List( ("a", Array(3), ("b", Array(2)))))
+
+TO generate output like:
+Array[(String, Array[Int])] = Array((a, Array(1,2))),("b", Array(1,2)), ("a", Array(3), ("b", Array(2)))
+
+au1.union(au2)
+
+42.
+required output:
+Dep, des, state, count, cost
+sales, Lead, TN, 2, 64000
+
+val rawlines = sc.textFile("/spark/test42/sales.txt")
+// create a case class, which can represent its column fields:
+case class Employee(dep: String, des: String, cost: Double, state: String)
+// split data and create RDD of all Employee object:
+val employees =  rawlines.map(_.split(",")).map(row => Employee(row(0), row(1), row(2).toDouble, row(3)))
+// create a row as we needed. All group by fields as a key and value as a count for each employee
+val keyVals = employees.map(em => ((em.dep, em.des, em.state), (1, em.cost)))
+// (a.count + b.count, a.cost + b.cost)
+val results = keyVals.reduceByKey{(a, b) => (a._1 + b._1, a._2 + b._2)}
+
+43.
+Required output: Array((1, two, 3, 4), (1, two, 5, 6))
+
+val grouped = sc.parallelize(Seq(((1, "two"), List((3,4), (5,6)))))
+val flattened = grouped.flatMap{case (key, groupValues) => groupValues.map{value => (key._1, key._2, value._1, value._2)}}
+
+// get filename with path:
+file.name ==> /spark/test44/text1.txt
+
+// set filename:
+file.setName("test") ==> test
+
+47??? aggregate???
+68...baki ???
+
+
+76. using pyspark calculate the number of order for each status using countByKey(), groupByKey(), reduceByKey(). aggregateByKey(), combineByKey().
+columns of order table: (order_id, order_date, order_customer_id, order_status)
+
+order = sc.textFile("/spark/test74/p74_orders")
+
+#countByKey:
+keyValue1 = order.map(lambda line: (line.split(",")[3], ""))
+output = keyValue1.countByKey().items()
+
+#groupByKey:
+keyValue2 = order.map(lambda line: (line.split(",")[3], 1))
+output1 = keyValue2.groupByKey().map(lambda kv: (kv[0], sum(kv[1])))
+
+grpupByKey() creates: 
+(u'SUSPECTED_FRAUD', <pyspark.resultiterable.ResultIterable object at 0x2b26210>)
+//(u'CLOSED', <pyspark.resultiterable.ResultIterable object at 0x41d20d0>)
+
+then later map creates:
+(u'PENDING', 7610)
+(u'SUSPECTED_FRAUD', 1558)
+
+#reduceByKey:
+output2 = keyValue2.reduceByKey(lambda x, y : x + y)
+
+#aggregateByKey:
+keyValue3 = order.map(lambda line: (line.split(",")[3], line))
+output3 = keyValue3.aggregateByKey(0, lambda a, b: a + 1, lambda a, b: a + b)
+
+#combineByKey:
+output4 = keyValue3.combineByKey(lambda value: 1, lambda acc, value: acc + 1, lambda acc1, acc2: acc1 + acc2)
+
+============================================================================
+val keysWithValuesList = Array("foo=A", "foo=A", "foo=A", "foo=A", "foo=B", "bar=C", "bar=D", "bar=D")
+val data = sc.parallelize(keysWithValuesList)
+//Create key value pairs
+val kv = data.map(_.split("=")).map(v => (v(0), v(1))).cache()
+val initialCount = 0;
+val addToCounts = (x: Int, y: String) => (x + 1)
+val sumPartitionCounts = (x: Int, y:String) => (x + y)
+val countByKey = kv.aggregateByKey(initialCount)(addToCounts, sumPartitionCounts)
+scala> val countByKey = kv.aggregateByKey(initialCount)({case(x, y) => (x+1)}, {case(x1, y1) => (x1 + y1)})
+res3: Array[(String, Int)] = Array((foo,5), (bar,3)) // count the keys
+
+val keysWithValuesList = Array("foo=1", "foo=1", "foo=1", "foo=1", "foo=2", "bar=3", "bar=4", "bar=4", "foo=2")
+val data = sc.parallelize(keysWithValuesList)
+val kv = data.map(_.split("=")).map(v => (v(0), v(1).toInt))
+val initialCount = 0
+val addToCounts = (x: Int, y: Int) => (x + y)
+val sumPartitionCounts = (x: Int, y: Int) => (x + y)
+val countByKey = kv.aggregateByKey(initialCount)(addToCounts, sumPartitionCounts)
+OR
+val countByKey = kv.aggregateByKey(initialCount)((x, y)=> (x + y), (x, y)=> (x + y))
+
+Array[(String, Int)] = Array((foo,8), (bar,11)) // sum of values
+=================================================================================
+
+import scala.collection._
+val initialSet = scala.collection.mutable.HashSet.empty[String]
+val addToSet = (x: mutable.HashSet[String], y: String) => x += y
+val mergePartitionSets = (x: mutable.HashSet[String], y: mutable.HashSet[String]) => x ++ y
+val uniqueByKey = kv.aggregateByKey(initialSet)(addToSet, mergePartitionSets)
+res4: Array[(String, scala.collection.mutable.HashSet[String])] = Array((foo,Set(B, A)),
+(bar,Set(C, D)))]
+==========================================================================================
+val product = sc.textFile("path")
+case class Product(productID: Int, productCode: String, name: String, quantity: Int, price: Float)
+val prodRDD = product.map(_.split(",")).map(p => Product(p(0).toInt, p(1), p(2),p(3).toInt, p(4).toFloat))
+val prodDF = prodRDD.toDF()
+
+import org.apache.spark.sql.hive.HiveContext
+val sqlContext = new HiveContext(sc)
+
+// Now store data in hive warehouse directory. (However, table will not be created)
+import org.apache.spark.sql.SaveMode
+prodDF.write.mode(SaveMode.Overwrite).format("orc").saveAsTable("product_orc_table")
+
+// create product table in hive using location
+create external table product_orc (productID int, code string, name string, quantity int, price float) stored as orc location "/user/hive/warehouse/product_orc_table";
+
+===============================================================
+sqoop import \
+--connect jdbc:mysql://quickstart.cloudera:3306/retail_db \
+--username retail_dba \
+--password cloudera \
+--table categories \
+--hive-import \
+--hive-table retail.categories \
+--where "category_id between 1 and 22" \
+--m 1
+===============================================================
+1. create table departments_export (deparment_id int(11), department_name varchar(45), created_date Timestamp default now())
+2. sqoop export \
+--connect jdbc:mysql://quickstart.cloudera:3306/retail_db \
+--username retail_dba \
+--password cloudera \
+--table departments_export \
+--export-dir /user/cloudera/departments_new \
+--batch
+===============================================================
+val emp = sc.textFile("/spark7/EmployeeName.csv")
+val empRDD = emp.map(x => (x.split(",")(0), x.split(",")(1))).map(x => x.swap).sortByKey().map.(x => x.swap)
+empRDD.repartition(1).saveAsTextFile("/hdfspath")
+==============
+A = x.split(",")
+B = {case x => if (x.isEmpty) 0 else x } // in python: lambda x: 0 id (len(x) < 0) else x
+============================================================
+val rdd = sc.parallelize(List( ("Deeapak" , "male", 4000), ("Deepak" , "male", 2000), ("Deepika" , "female", 2000),("Deepak" , "female", 2000), ("Deepak" , "male", 1000) , ("Neeta" , "female", 2000)))
+
+// python:  rdd = sc.parallelize([("Deeapak" , "male", 4000), ("Deepak" , "male", 2000), ("Deepika" , "female", 2000),("Deepak" , "female", 2000), ("Deepak" , "male", 1000) , ("Neeta" , "female", 2000)])
+
+val mapped = rdd.map(x => ((x._1, x._2), x._3)))
+
+// python: mapped = rdd.map(lambda x: ((x[0], x[1]), x[2]))
+
+scala> rdd.map(x => x._1).collect() // ._ works in collection, not in array
+res45: Array[String] = Array(Deeapak, Deepak, Deepika, Deepak, Deepak, Neeta)
+scala> rdd.map(x => x._1).map(x => x(0)).collect() // map converts to Array where x(1) works only not x._1
+res46: Array[Char] = Array(D, D, D, D, D, N)
+
+// if the file is in textFile then: 
+scala> val testTbl = test.map(_.split(",")).map(x => Test(x(0), x(1), x(2).toInt))
+=================================================================
+//sortBy function:
+scala> x.sortBy(c => c, true).collect() // lowecase true
+res63: Array[Int] = Array(1, 2, 3, 4)
+
+scala> x.sortBy(c => c, false).collect()
+res64: Array[Int] = Array(4, 3, 2, 1)
+
+val z = sc.parallelize(Array(("H", 10), ("A", 26), ("Z", 1), ("L", 5)))
+z.sortBy(c => c._1, true).collect
+OR
+z.sortByKey().collect
+res65: Array[(String, Int)] = Array((A,26), (H,10), (L,5), (Z,1))
+
